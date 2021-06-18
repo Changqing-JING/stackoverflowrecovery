@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
+
 #include "stack_overflow_demo.h"
 
 void infinite_recursion() {
@@ -63,26 +66,54 @@ int stack_overflow_demo()
 
 #else
 
-
-
+#define __USE_GNU 1
+#define _GNU_SOURCE //for pthread_getattr_np
 #include <signal.h>
 #include <setjmp.h>
 #include <unistd.h>
+#include <ucontext.h>
+
+#include <pthread.h>
+
+void* stackTop;
 
 
-jmp_buf b1;
-
-
-
-
+sigjmp_buf b1;
 
 
 static char stack[SIGSTKSZ];
 
-void handler(int sig)
+static void handler(int signalId, siginfo_t *si, void *ptr)
 {
-    printf("stack overflow\n");
-    longjmp(b1, 1);
+    ucontext_t *uc = (ucontext_t *)ptr;
+    void* rp2 = si->si_addr;
+    void* rsp = (void*)uc->uc_mcontext.gregs[REG_RSP];
+    if(rsp == stackTop){
+        printf("stack overflow\n");
+        siglongjmp(b1, 1);
+    }else{
+        printf("Other Fault\n");
+
+        exit(1);
+    } 
+}
+
+static void normal_sigment_fault_demo(){
+    
+    struct sigaction sa = {0};
+    sa.sa_sigaction  = handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigfillset(&sa.sa_mask);
+    int error = sigaction(SIGSEGV, &sa, 0);
+
+    if(error){
+        perror("sigaction error");
+    }else{
+        int* pm = 0;
+        int m = *pm;
+    }
+
+    
 }
 
 
@@ -93,19 +124,26 @@ int stack_overflow_demo(){
     ss.ss_flags = 0;
     
     struct sigaction sa;
-    sa.sa_handler = handler;
-    sa.sa_flags = SA_ONSTACK;
+    sa.sa_sigaction  = handler;
+    sa.sa_flags = SA_ONSTACK | SA_SIGINFO;
     
     sigaltstack(&ss, 0);
     sigfillset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, 0);
 
+    pthread_t thread = pthread_self();
+    pthread_attr_t attrs;
+    pthread_getattr_np(thread, &attrs);
+    size_t stack_size;
+    pthread_attr_getstack(&attrs, &stackTop, &stack_size);
 
-    if(!setjmp(b1)){
+    if(!sigsetjmp(b1, 1)){
         infinite_recursion();
     }else{
         printf("I'm back\n");
     }
+
+    normal_sigment_fault_demo();
 
     return 0;
 }
