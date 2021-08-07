@@ -118,9 +118,15 @@ static char stack[SIGSTKSZ];
 static void handler(int signalId, siginfo_t *si, void *ptr)
 {
     ucontext_t *uc = (ucontext_t *)ptr;
-    void* rp2 = si->si_addr;
-    void* rsp = (void*)uc->uc_mcontext.gregs[REG_RSP];
-    if(rsp == stackTop){
+    #if (defined __x86_64__ || defined _M_X64 )
+    void* stackRegister = (void*)uc->uc_mcontext.gregs[REG_RSP];
+    #elif defined __aarch64__ || defined _M_ARM
+    void* stackRegister = (void*)uc->uc_mcontext.sp;
+    #else
+    #error "unsupported CPU"
+    #endif
+    
+    if(stackRegister == stackTop){
         printf("stack overflow\n");
         siglongjmp(b1, 1);
     }else{
