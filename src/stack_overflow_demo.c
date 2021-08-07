@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <setjmp.h>
 
 
 
@@ -64,12 +64,44 @@ int stack_overflow_demo()
     return 0;
 }
 
+jmp_buf buff;
+
+LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
+{
+
+    printf( "VectoredExceptionHandler %x\n",  pExceptionInfo->ExceptionRecord->ExceptionCode);
+
+    longjmp(buff, 1);
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+int stack_overflow_demo_win_with_hanlder()
+{
+    AddVectoredExceptionHandler(1, VectoredExceptionHandler);
+
+
+    ULONG stackSize = 1024 * 5;
+    SetThreadStackGuarantee(&stackSize);
+    
+    //foo();
+    if (setjmp(buff) == 0) {
+        infinite_recursion();
+    }
+    else {
+        printf("I'm back\n");
+    }
+
+
+    return 0;
+}
+
 #else
 
 #define __USE_GNU 1
 #define _GNU_SOURCE //for pthread_getattr_np
 #include <signal.h>
-#include <setjmp.h>
+
 #include <unistd.h>
 #include <ucontext.h>
 
