@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
+#include <stdint.h>
 
 
 
 #include "stack_overflow_demo.h"
 
 void infinite_recursion() {
+    char a[1024];
      infinite_recursion();
 }
 
@@ -117,23 +119,34 @@ static char stack[SIGSTKSZ];
 
 static void handler(int signalId, siginfo_t *si, void *ptr)
 {
-    ucontext_t *uc = (ucontext_t *)ptr;
-    #if (defined __x86_64__ || defined _M_X64 )
-    void* stackRegister = (void*)uc->uc_mcontext.gregs[REG_RSP];
-    #elif defined __aarch64__ || defined _M_ARM
-    void* stackRegister = (void*)uc->uc_mcontext.sp;
-    #else
-    #error "unsupported CPU"
-    #endif
+    if(signalId == SIGSEGV){
+
     
-    if(stackRegister == stackTop){
-        printf("stack overflow\n");
-        siglongjmp(b1, 1);
+        ucontext_t *uc = (ucontext_t *)ptr;
+        #if (defined __x86_64__ || defined _M_X64 )
+        void* stackRegister = (void*)uc->uc_mcontext.gregs[REG_RSP];
+        #elif defined __aarch64__ || defined _M_ARM
+        void* stackRegister = (void*)uc->uc_mcontext.sp;
+        #else
+        #error "unsupported CPU"
+        #endif
+
+        void* faultAddress = si->si_addr;
+        uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
+        
+        if((uintptr_t)stackRegister <= safeStackAddress && (uintptr_t)faultAddress<=safeStackAddress){
+            printf("stack overflow\n");
+            siglongjmp(b1, 1);
+        }else{
+            printf("Segment Fault\n");
+
+            exit(1);
+        } 
     }else{
-        printf("Other Fault\n");
+        printf("Unhandled Fault %d\n", signalId);
 
         exit(1);
-    } 
+    }
 }
 
 static void normal_sigment_fault_demo(){
