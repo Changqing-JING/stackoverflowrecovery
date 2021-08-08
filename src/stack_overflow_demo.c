@@ -117,24 +117,37 @@ sigjmp_buf b1;
 
 static char stack[SIGSTKSZ];
 
+static int downwardsGrowingStacksChecker(uintptr_t currentSP, uintptr_t stackLimit){
+    return currentSP <= stackLimit;
+}
+
+static int upwardsGrowingStacksChecker(uintptr_t currentSP, uintptr_t stackLimit){
+    return currentSP >= stackLimit;
+}
+
+
+
 static void handler(int signalId, siginfo_t *si, void *ptr)
 {
     if(signalId == SIGSEGV){
 
+        void* faultAddress = si->si_addr;
+        uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
     
         ucontext_t *uc = (ucontext_t *)ptr;
         #if (defined __x86_64__ || defined _M_X64 )
         void* stackRegister = (void*)uc->uc_mcontext.gregs[REG_RSP];
+        #define STACK_CHECKER downwardsGrowingStacksChecker
         #elif defined __aarch64__ || defined _M_ARM
         void* stackRegister = (void*)uc->uc_mcontext.sp;
+        #define STACK_CHECKER downwardsGrowingStacksChecker
         #else
         #error "unsupported CPU"
         #endif
 
-        void* faultAddress = si->si_addr;
-        uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
         
-        if((uintptr_t)stackRegister <= safeStackAddress && (uintptr_t)faultAddress<=safeStackAddress){
+        
+        if(STACK_CHECKER((uintptr_t)stackRegister,safeStackAddress)){
             printf("stack overflow\n");
             siglongjmp(b1, 1);
         }else{
