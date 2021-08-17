@@ -80,7 +80,7 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
 
 int stack_overflow_demo_win_with_hanlder()
 {
-    AddVectoredExceptionHandler(1, VectoredExceptionHandler);
+    PVOID handle = AddVectoredExceptionHandler(1, VectoredExceptionHandler);
 
 
     ULONG stackSize = 1024 * 5;
@@ -94,7 +94,8 @@ int stack_overflow_demo_win_with_hanlder()
         printf("I'm back\n");
     }
 
-
+    _resetstkoflw();
+    RemoveVectoredExceptionHandler(handle);
     return 0;
 }
 
