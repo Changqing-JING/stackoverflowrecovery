@@ -217,7 +217,7 @@ int stack_overflow_demo(){
     sigfillset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, 0);
 
-    #ifndef __APPLE__
+    #ifdef __linux__
     pthread_t thread = pthread_self();
     pthread_attr_t attrs;
     pthread_getattr_np(thread, &attrs);
