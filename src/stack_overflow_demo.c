@@ -144,7 +144,7 @@ static void handler(int signalId, siginfo_t *si, void *ptr)
         uintptr_t* sp = (uintptr_t*)uc->uc_stack.ss_sp;
         uintptr_t* stackAddr = (uintptr_t*)&stack;
 
-        if(sp >= stackAddr && sp >= stackAddr + SIGSTKSZ) {
+        if(sp >= stackAddr && sp <= stackAddr + SIGSTKSZ) {
             printf("stack overflow\n");
             siglongjmp(b1, 1);
         } else {
