@@ -105,6 +105,10 @@ int stack_overflow_demo_win_with_hanlder()
 #define _GNU_SOURCE //for pthread_getattr_np
 #include <signal.h>
 
+#ifdef __APPLE__
+#define _XOPEN_SOURCE
+#endif
+
 #include <unistd.h>
 #include <ucontext.h>
 
@@ -133,9 +137,25 @@ static void handler(int signalId, siginfo_t *si, void *ptr)
     if(signalId == SIGSEGV){
 
         void* faultAddress = si->si_addr;
+
+        ucontext_t *uc = (ucontext_t *)ptr;
+
+        #ifdef __APPLE__
+        uintptr_t* sp = (uintptr_t*)uc->uc_stack.ss_sp;
+        uintptr_t* stackAddr = (uintptr_t*)&stack;
+
+        if(sp >= stackAddr && sp >= stackAddr + SIGSTKSZ) {
+            printf("stack overflow\n");
+            siglongjmp(b1, 1);
+        } else {
+            printf("Segment Fault\n");
+            exit(1);
+        }
+
+        #else
+
         uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
     
-        ucontext_t *uc = (ucontext_t *)ptr;
         #if (defined __x86_64__ || defined _M_X64 )
         void* stackRegister = (void*)uc->uc_mcontext.gregs[REG_RSP];
         #define STACK_CHECKER downwardsGrowingStacksChecker
@@ -155,7 +175,8 @@ static void handler(int signalId, siginfo_t *si, void *ptr)
             printf("Segment Fault\n");
 
             exit(1);
-        } 
+        }
+        #endif
     }else{
         printf("Unhandled Fault %d\n", signalId);
 
@@ -196,11 +217,13 @@ int stack_overflow_demo(){
     sigfillset(&sa.sa_mask);
     sigaction(SIGSEGV, &sa, 0);
 
+    #ifndef __APPLE__
     pthread_t thread = pthread_self();
     pthread_attr_t attrs;
     pthread_getattr_np(thread, &attrs);
     size_t stack_size;
     pthread_attr_getstack(&attrs, &stackTop, &stack_size);
+    #endif
 
     if(!sigsetjmp(b1, 1)){
         infinite_recursion();
