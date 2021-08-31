@@ -9,7 +9,7 @@
 
 void infinite_recursion() {
     char a[1024];
-     infinite_recursion();
+    infinite_recursion();
 }
 
 
@@ -110,17 +110,26 @@ int stack_overflow_demo_win_with_hanlder()
 #endif
 
 #include <unistd.h>
+
+
+#ifdef __APPLE__
+#define _XOPEN_SOURCE
+#endif
+
 #include <ucontext.h>
 
 #include <pthread.h>
 
+#ifdef __linux__
 void* stackTop;
+#endif
 
 
 sigjmp_buf b1;
 
+static const int stackSize = SIGSTKSZ;
 
-static char stack[SIGSTKSZ];
+static char stack[stackSize];
 
 static int downwardsGrowingStacksChecker(uintptr_t currentSP, uintptr_t stackLimit){
     return currentSP <= stackLimit;
@@ -131,28 +140,22 @@ static int upwardsGrowingStacksChecker(uintptr_t currentSP, uintptr_t stackLimit
 }
 
 
-
 static void handler(int signalId, siginfo_t *si, void *ptr)
 {
     if(signalId == SIGSEGV){
-
         void* faultAddress = si->si_addr;
-
         ucontext_t *uc = (ucontext_t *)ptr;
-
+        int isStackOverFlow = 0;
         #ifdef __APPLE__
-        uintptr_t* sp = (uintptr_t*)uc->uc_stack.ss_sp;
-        uintptr_t* stackAddr = (uintptr_t*)&stack;
-
-        if(sp >= stackAddr && sp <= stackAddr + SIGSTKSZ) {
-            printf("stack overflow\n");
-            siglongjmp(b1, 1);
+        uintptr_t sp = (uintptr_t)uc->uc_stack.ss_sp;
+        uintptr_t stackStart = (uintptr_t)&stack;
+        if(sp > stackStart && sp < stackStart + stackSize) {
+            isStackOverFlow = 1;
         } else {
-            printf("Segment Fault\n");
-            exit(1);
+            isStackOverFlow = 0;
         }
-
         #else
+        void* stackRegister = uc->uc_stack.ss_sp;
 
         uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
     
@@ -169,17 +172,21 @@ static void handler(int signalId, siginfo_t *si, void *ptr)
         
         
         if(STACK_CHECKER((uintptr_t)stackRegister,safeStackAddress)){
+            isStackOverFlow = 1;
+        }else{
+            isStackOverFlow = 0;
+        }
+        #endif 
+
+        if(isStackOverFlow == 1) {
             printf("stack overflow\n");
             siglongjmp(b1, 1);
-        }else{
+        } else {
             printf("Segment Fault\n");
-
             exit(1);
         }
-        #endif
     }else{
         printf("Unhandled Fault %d\n", signalId);
-
         exit(1);
     }
 }
@@ -198,8 +205,6 @@ static void normal_sigment_fault_demo(){
         int* pm = 0;
         int m = *pm;
     }
-
-    
 }
 
 
@@ -218,13 +223,13 @@ int stack_overflow_demo(){
     sigaction(SIGSEGV, &sa, 0);
 
     #ifdef __linux__
-    pthread_t thread = pthread_self();
     pthread_attr_t attrs;
-    pthread_getattr_np(thread, &attrs);
     size_t stack_size;
+    pthread_t thread = pthread_self();
+    pthread_getattr_np(thread, &attrs);
     pthread_attr_getstack(&attrs, &stackTop, &stack_size);
     #endif
-
+    
     if(!sigsetjmp(b1, 1)){
         infinite_recursion();
     }else{
