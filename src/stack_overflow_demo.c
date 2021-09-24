@@ -127,7 +127,7 @@ void* stackTop;
 
 sigjmp_buf b1;
 
-static const int stackSize = SIGSTKSZ;
+#define stackSize SIGSTKSZ
 
 static char stack[stackSize];
 
@@ -155,7 +155,6 @@ static void handler(int signalId, siginfo_t *si, void *ptr)
             isStackOverFlow = 0;
         }
         #else
-        void* stackRegister = uc->uc_stack.ss_sp;
 
         uintptr_t safeStackAddress = (uintptr_t)stackTop + sizeof(size_t);
     
@@ -235,8 +234,6 @@ int stack_overflow_demo(){
     }else{
         printf("I'm back\n");
     }
-
-    normal_sigment_fault_demo();
 
     return 0;
 }
